@@ -53,7 +53,7 @@ export default function QuizItem({ question, onAnswer }: QuizItemProps) {
           value={freeText}
           onChange={(e) => setFreeText(e.target.value)}
           disabled={submitted}
-          className="w-full p-4 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 min-h-[120px]"
+          className="w-full p-4 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 min-h-30"
           placeholder="Type your answer here..."
         />
       )}

@@ -1,14 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { processStudyMaterial, saveStudyData } from './actions';
 
 export default function Home() {
   const [content, setContent] = useState('');
   const [title, setTitle] = useState('');
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
+  
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,11 +18,11 @@ export default function Home() {
       // Let's save immediately to make it a real platform.
       try {
         const materialId = await saveStudyData(data);
-        router.push(`/study/${materialId}`);
+        window.location.href = `/study/${materialId}`;
       } catch (dbError) {
         console.warn('Failed to save to Supabase, falling back to local preview', dbError);
         localStorage.setItem('currentStudy', JSON.stringify(data));
-        router.push('/study/preview');
+        window.location.href = '/study/preview';
       }
     } catch (error) {
       console.error(error);
@@ -34,7 +33,7 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 py-12 px-4">
+    <main className="min-h-screen bg-linear-to-b from-slate-50 to-slate-100 py-12 px-4">
       <div className="max-w-4xl mx-auto">
         <header className="text-center mb-12">
           <h1 className="text-4xl font-extrabold text-slate-900 mb-4 tracking-tight">StudyPath</h1>
