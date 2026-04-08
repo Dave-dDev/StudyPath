@@ -1,0 +1,32 @@
+
+> tmp-app@0.1.0 dev
+> next dev
+
+▲ Next.js 16.2.2 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.0.2:3000
+✓ Ready in 600ms
+
+○ Compiling / ...
+ GET / 200 in 6.1s (next.js: 5.7s, application-code: 394ms)
+[browser] Error: [GoogleGenerativeAI Error]: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent: [403 ] Method doesn't allow unregistered callers (callers without established identity). Please use API Key or other form of API consumer identity to call this API.
+    at handleResponseNotOk (.next/dev/static/chunks/_0pwr_sg._.js:1057:11)
+    at async makeRequest (.next/dev/static/chunks/_0pwr_sg._.js:1029:9)
+    at async generateContent (.next/dev/static/chunks/_0pwr_sg._.js:1471:22)
+    at async generateFlashcards (src/lib/ai-services.ts:13:18)
+    at async processStudyMaterial (src/app/actions.ts:10:39)
+    at async handleSubmit (src/app/page.tsx:19:20)
+  11 |   `;
+  12 |
+> 13 |   const result = await model.generateContent(prompt);
+     |                  ^
+  14 |   const text = await result.response.text();
+  15 |   const jsonMatch = text.match(/\[.*\]/s);
+  16 |   return jsonMatch ? JSON.parse(jsonMatch[0]) : []; (src/app/page.tsx:23:15)
+ GET / 200 in 200ms (next.js: 71ms, application-code: 129ms)
+ GET /study/preview 200 in 3.5s (next.js: 3.5s, application-code: 48ms)
+ GET /dashboard 200 in 1334ms (next.js: 1202ms, application-code: 132ms)
+✓ Compiled in 3.4s
+✓ Compiled in 123ms
+✓ Compiled in 234ms
+✓ Compiled in 34ms
