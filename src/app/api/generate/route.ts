@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generateQuiz, generateFlashcards, generateFeynmanSummary } from "@/lib/gemini";
+import { generateQuiz, generateFlashcards, generateFeynmanSummary, getProviderInfo } from "@/lib/ai";
 import type { Difficulty, StudyMode } from "@/types";
 
 const MAX_RETRIES = 2;
@@ -30,7 +30,6 @@ export async function POST(req: NextRequest) {
       count?: number;
     };
 
-    // Validate inputs
     if (!text || text.trim().length < 50) {
       return NextResponse.json(
         { error: "Please provide at least 50 characters of text." },
@@ -57,15 +56,15 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Invalid mode." }, { status: 400 });
     }
 
-    return NextResponse.json({ success: true, mode, data });
+    const provider = getProviderInfo();
+    return NextResponse.json({ success: true, mode, data, provider });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Generation failed.";
     console.error("[/api/generate]", err);
 
-    // Provide user-friendly error messages
     if (message.includes("ECONNREFUSED") || message.includes("fetch failed")) {
       return NextResponse.json(
-        { error: "The AI model is temporarily unavailable. Please ensure Ollama is running and try again." },
+        { error: "The AI model is temporarily unavailable. Please check your API configuration and try again." },
         { status: 503 }
       );
     }

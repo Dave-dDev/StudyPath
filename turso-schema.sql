@@ -62,3 +62,40 @@ CREATE INDEX IF NOT EXISTS idx_flashcard_progress_review ON flashcard_progress(n
 CREATE INDEX IF NOT EXISTS idx_flashcard_progress_study ON flashcard_progress(user_id, study_set_id);
 CREATE INDEX IF NOT EXISTS idx_session_user ON session(user_id);
 CREATE INDEX IF NOT EXISTS idx_session_expires ON session(expires_at);
+
+-- Question bank (saved quiz questions for review)
+CREATE TABLE IF NOT EXISTS question_bank (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+  study_set_id TEXT REFERENCES study_sets(id) ON DELETE SET NULL,
+  question TEXT NOT NULL,
+  options TEXT NOT NULL,
+  correct_index INTEGER NOT NULL,
+  explanation TEXT,
+  difficulty TEXT DEFAULT 'medium',
+  topic TEXT,
+  times_seen INTEGER DEFAULT 0,
+  times_correct INTEGER DEFAULT 0,
+  last_seen_at INTEGER,
+  created_at INTEGER DEFAULT (unixepoch())
+);
+
+-- Adaptive difficulty tracking (per topic/difficulty performance)
+CREATE TABLE IF NOT EXISTS performance_log (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+  study_set_id TEXT REFERENCES study_sets(id) ON DELETE SET NULL,
+  mode TEXT NOT NULL,
+  difficulty TEXT NOT NULL,
+  accuracy REAL NOT NULL,
+  time_taken_ms INTEGER,
+  topic TEXT,
+  created_at INTEGER DEFAULT (unixepoch())
+);
+
+CREATE INDEX IF NOT EXISTS idx_question_bank_user ON question_bank(user_id);
+CREATE INDEX IF NOT EXISTS idx_question_bank_difficulty ON question_bank(user_id, difficulty);
+CREATE INDEX IF NOT EXISTS idx_question_bank_topic ON question_bank(user_id, topic);
+CREATE INDEX IF NOT EXISTS idx_performance_log_user ON performance_log(user_id);
+CREATE INDEX IF NOT EXISTS idx_performance_log_mode ON performance_log(user_id, mode);
+CREATE INDEX IF NOT EXISTS idx_performance_log_created ON performance_log(user_id, created_at);

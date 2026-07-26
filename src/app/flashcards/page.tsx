@@ -48,10 +48,26 @@ export default function FlashcardsPage() {
           })),
         }),
       });
-    } catch {
-      // Best-effort
-    }
-  }, [studySetId]);
+    } catch {}
+
+    // Log performance
+    try {
+      const meta = sessionStorage.getItem("studyMeta");
+      const parsed = meta ? JSON.parse(meta) : {};
+      const total = stats.again + stats.hard + stats.easy + stats.perfect;
+      const accuracy = total > 0 ? Math.round(((stats.easy + stats.perfect) / total) * 100) : 0;
+      await fetch("/api/performance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          studySetId,
+          mode: "flashcards",
+          difficulty: parsed.difficulty || "medium",
+          accuracy,
+        }),
+      });
+    } catch {}
+  }, [studySetId, stats]);
 
   if (!cards.length) return null;
 

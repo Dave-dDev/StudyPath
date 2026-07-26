@@ -1,5 +1,5 @@
 "use client";
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useDropzone } from "react-dropzone";
 import toast from "react-hot-toast";
@@ -44,6 +44,22 @@ export default function UploadPage() {
   const [mode, setMode] = useState<StudyMode>("quiz");
   const [difficulty, setDifficulty] = useState<Difficulty>("medium");
   const [loading, setLoading] = useState(false);
+  const [adaptiveRec, setAdaptiveRec] = useState<{ recommended: string; confidence: number } | null>(null);
+  const [urlInput, setUrlInput] = useState("");
+  const [fetchingUrl, setFetchingUrl] = useState(false);
+
+  // Fetch adaptive difficulty recommendation
+  useEffect(() => {
+    fetch("/api/adaptive-difficulty")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.recommended && d.confidence > 0.5) {
+          setAdaptiveRec(d);
+          setDifficulty(d.recommended as Difficulty);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const recommendedMode = useMemo(() => getRecommendedMode(text), [text]);
   const recommendedDifficulty = useMemo(() => getRecommendedDifficulty(text), [text]);
@@ -63,6 +79,23 @@ export default function UploadPage() {
     maxFiles: 1,
   });
 
+  async function handleFetchUrl() {
+    if (!urlInput.trim()) return;
+    setFetchingUrl(true);
+    try {
+      const res = await fetch(`/api/fetch-url?url=${encodeURIComponent(urlInput)}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setText(data.text);
+      setUrlInput("");
+      toast.success("Content fetched successfully");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to fetch URL");
+    } finally {
+      setFetchingUrl(false);
+    }
+  }
+
   async function handleGenerate() {
     if (text.trim().length < 50) {
       toast.error("Please provide at least 50 characters of text.");
@@ -78,38 +111,23 @@ export default function UploadPage() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error);
 
-      // Generate a title from the first line or first 60 chars
       const title = text.split("\n")[0].slice(0, 60).trim() || "Untitled study set";
 
-      // Save to Turso (best-effort — don't block if not authenticated)
       let studySetId: string | null = null;
       try {
         const saveRes = await fetch("/api/study-sets", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            title,
-            sourceText: text,
-            difficulty,
-            mode,
-            data: json.data,
-          }),
+          body: JSON.stringify({ title, sourceText: text, difficulty, mode, data: json.data }),
         });
         const saveJson = await saveRes.json();
-        if (saveRes.ok && saveJson.set) {
-          studySetId = saveJson.set.id;
-        }
-      } catch {
-        // Not authenticated or DB error — continue with sessionStorage
-      }
+        if (saveRes.ok && saveJson.set) studySetId = saveJson.set.id;
+      } catch {}
 
-      // Save to sessionStorage so quiz/flashcard pages can read it
       sessionStorage.setItem("studyData", JSON.stringify(json.data));
       sessionStorage.setItem("studyMode", mode);
       sessionStorage.setItem("studyMeta", JSON.stringify({ difficulty, chars: text.length }));
-      if (studySetId) {
-        sessionStorage.setItem("studySetId", studySetId);
-      }
+      if (studySetId) sessionStorage.setItem("studySetId", studySetId);
 
       router.push(mode === "quiz" ? "/quiz" : mode === "flashcards" ? "/flashcards" : "/feynman");
     } catch (err: unknown) {
@@ -136,7 +154,7 @@ export default function UploadPage() {
       <main className="max-w-3xl mx-auto px-4 py-12 animate-fade-in">
         <div className="text-center mb-10">
           <h1 className="font-bold text-3xl text-ink mb-2">What do you want to study today?</h1>
-          <p className="text-gray-600">Paste text, upload a PDF, or drop a .txt file — we&apos;ll handle the rest.</p>
+          <p className="text-gray-600">Paste text, upload a file, or fetch from a URL — we&apos;ll handle the rest.</p>
         </div>
 
         <div
@@ -159,13 +177,38 @@ export default function UploadPage() {
 
         <div className="flex items-center gap-3 my-5">
           <div className="flex-1 h-px bg-gray-200" />
+          <span className="text-xs text-gray-400">or</span>
+          <div className="flex-1 h-px bg-gray-200" />
+        </div>
+
+        {/* URL fetch */}
+        <div className="flex gap-2 mb-4">
+          <input
+            type="url"
+            className="input flex-1"
+            placeholder="Paste a URL to fetch article content..."
+            value={urlInput}
+            onChange={(e) => setUrlInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleFetchUrl()}
+          />
+          <button
+            onClick={handleFetchUrl}
+            disabled={fetchingUrl || !urlInput.trim()}
+            className="btn-secondary px-4 text-sm"
+          >
+            {fetchingUrl ? "..." : "Fetch"}
+          </button>
+        </div>
+
+        <div className="flex items-center gap-3 my-5">
+          <div className="flex-1 h-px bg-gray-200" />
           <span className="text-xs text-gray-400">or paste text directly</span>
           <div className="flex-1 h-px bg-gray-200" />
         </div>
 
         <textarea
           className="textarea h-36 mb-4"
-          placeholder="Paste your notes, article, or chapter here…"
+          placeholder="Paste your notes, article, or chapter here..."
           value={text}
           onChange={(e) => setText(e.target.value)}
         />
@@ -180,25 +223,23 @@ export default function UploadPage() {
           <div className="card border-teal-100 bg-teal-50/60 p-5 mb-6">
             <p className="text-teal-700 text-sm font-semibold mb-2">Smart study suggestion</p>
             <p className="text-sm text-ink mb-4">
-              Based on your text length, <strong>{recommendedMode}</strong> is a great option for this material.
-              Try <strong>{recommendedDifficulty}</strong> difficulty for the best learning flow.
+              Based on your text length, <strong>{recommendedMode}</strong> is a great option.
+              {adaptiveRec && (
+                <> We also recommend <strong>{adaptiveRec.recommended}</strong> difficulty based on your recent performance ({Math.round(adaptiveRec.confidence * 100)}% confidence).</>
+              )}
+              {!adaptiveRec && <> Try <strong>{recommendedDifficulty}</strong> difficulty for the best learning flow.</>}
             </p>
             <div className="flex flex-wrap gap-3">
               <button
                 onClick={() => {
                   setMode(recommendedMode);
-                  setDifficulty(recommendedDifficulty);
+                  setDifficulty(adaptiveRec?.recommended as Difficulty || recommendedDifficulty);
                 }}
                 className="btn-primary text-sm"
               >
                 Use recommendation
               </button>
-              <button
-                onClick={() => setText("")}
-                className="btn-ghost text-sm"
-              >
-                Clear text
-              </button>
+              <button onClick={() => setText("")} className="btn-ghost text-sm">Clear text</button>
             </div>
           </div>
         )}
@@ -236,7 +277,7 @@ export default function UploadPage() {
 
         <p className="text-center text-xs text-gray-400 mt-3">
           {text.length > 0 ? `${text.length.toLocaleString()} characters · ` : ""}
-          Powered by your local Ollama model
+          Powered by AI
         </p>
       </main>
     </div>

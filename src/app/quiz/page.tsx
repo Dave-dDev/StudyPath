@@ -28,24 +28,60 @@ export default function QuizPage() {
   }, [router]);
 
   const saveResults = useCallback(async (result: QuizResults) => {
-    if (!studySetId) return;
+    // Save quiz result
+    if (studySetId) {
+      try {
+        await fetch("/api/quiz-results", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            studySetId,
+            totalQuestions: result.totalQuestions,
+            correctAnswers: result.correctAnswers,
+            accuracy: result.accuracy,
+            timeTakenMs: result.timeTakenMs,
+            answers: result.answers,
+          }),
+        });
+      } catch {}
+    }
+
+    // Save questions to question bank
     try {
-      await fetch("/api/quiz-results", {
+      await fetch("/api/question-bank", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          questions: questions.map((q) => ({
+            id: q.id,
+            question: q.question,
+            options: q.options,
+            correctIndex: q.correctIndex,
+            explanation: q.explanation,
+            difficulty: sessionStorage.getItem("studyMeta") ? JSON.parse(sessionStorage.getItem("studyMeta")!).difficulty : "medium",
+          })),
+          studySetId,
+        }),
+      });
+    } catch {}
+
+    // Log performance
+    try {
+      const meta = sessionStorage.getItem("studyMeta");
+      const parsed = meta ? JSON.parse(meta) : {};
+      await fetch("/api/performance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           studySetId,
-          totalQuestions: result.totalQuestions,
-          correctAnswers: result.correctAnswers,
+          mode: "quiz",
+          difficulty: parsed.difficulty || "medium",
           accuracy: result.accuracy,
           timeTakenMs: result.timeTakenMs,
-          answers: result.answers,
         }),
       });
-    } catch {
-      // Best-effort — don't block UI
-    }
-  }, [studySetId]);
+    } catch {}
+  }, [studySetId, questions]);
 
   if (!questions.length) return null;
 
@@ -129,6 +165,7 @@ export default function QuizPage() {
 
             <div className="flex gap-3">
               <button onClick={() => router.push("/upload")} className="btn-ghost flex-1">New study set</button>
+              <button onClick={() => router.push("/review")} className="btn-ghost flex-1 text-red-400">Review mistakes</button>
               <button
                 onClick={() => {
                   setCurrent(0); setSelected(null);

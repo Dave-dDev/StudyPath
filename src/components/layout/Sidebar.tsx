@@ -1,16 +1,15 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { BookOpen, Home, Library, Calendar, BarChart2, Settings, LogOut } from "lucide-react";
+import { BookOpen, Home, Library, Calendar, BarChart2, AlertCircle, LogOut } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 
 const NAV = [
-  { href: "/dashboard",  label: "Dashboard",  icon: Home },
-  { href: "/upload",     label: "New Study Set", icon: Library },
-  { href: "/dashboard",  label: "Review Due", icon: Calendar },
-  { href: "/dashboard",  label: "Analytics",  icon: BarChart2 },
-  { href: "/dashboard",  label: "Settings",   icon: Settings },
+  { href: "/dashboard",  label: "Dashboard",      icon: Home },
+  { href: "/upload",     label: "New Study Set",   icon: Library },
+  { href: "/review",     label: "Review Mistakes",  icon: AlertCircle },
+  { href: "/analytics",  label: "Analytics",        icon: BarChart2 },
 ];
 
 export default function Sidebar() {
@@ -29,7 +28,6 @@ export default function Sidebar() {
 
   return (
     <aside className="w-[240px] h-screen bg-white border-r border-gray-100 flex flex-col sticky top-0 shrink-0">
-      {/* Logo */}
       <Link href="/" className="flex items-center gap-2.5 px-6 h-16 border-b border-gray-100">
         <div className="w-6 h-6 bg-teal-400 rounded-lg flex items-center justify-center">
           <BookOpen size={13} className="text-white" />
@@ -37,7 +35,6 @@ export default function Sidebar() {
         <span className="font-bold text-base text-ink">StudyPath</span>
       </Link>
 
-      {/* Nav items */}
       <nav className="flex-1 p-3 space-y-1">
         {NAV.map(({ href, label, icon: Icon }) => {
           const active = path === href;
@@ -59,7 +56,6 @@ export default function Sidebar() {
         })}
       </nav>
 
-      {/* Bottom user strip */}
       <div className="p-4 border-t border-gray-100">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center text-teal-700 text-xs font-bold">
