@@ -30,3 +30,7 @@ Thumbs.db
 
 # Vercel
 .vercel
+
+# Temp files
+cookies.txt
+tsconfig.tsbuildinfo
