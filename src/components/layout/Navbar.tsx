@@ -26,8 +26,8 @@ export default function Navbar() {
       {/* Nav links — hidden on mobile */}
       {isHome && (
         <div className="hidden md:flex items-center gap-9 text-sm font-medium text-gray-600">
-          {["Features", "How it works", "Pricing", "Blog"].map((l) => (
-            <a key={l} href="#" className="hover:text-ink transition-colors">{l}</a>
+          {["Features", "How it works", "Pricing"].map((l) => (
+            <a key={l} href={`#${l.toLowerCase().replace(/ /g, "-")}`} className="hover:text-ink transition-colors">{l}</a>
           ))}
         </div>
       )}
