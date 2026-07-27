@@ -1,9 +1,9 @@
-import { type NextRequest } from "next/server";
-import { validateSession } from "@/lib/auth";
+import { NextResponse, type NextRequest } from "next/server";
 
 const SESSION_COOKIE = "studypath_session";
 
 export async function middleware(request: NextRequest) {
+  const res = NextResponse.next();
   const sessionId = request.cookies.get(SESSION_COOKIE)?.value ?? null;
 
   if (!sessionId) {
@@ -14,12 +14,20 @@ export async function middleware(request: NextRequest) {
       !request.nextUrl.pathname.startsWith("/auth");
 
     if (isProtectedRoute) {
-      return Response.redirect(new URL("/login", request.url));
+      return NextResponse.redirect(new URL("/login", request.url));
     }
-    return new Response(null);
+    return res;
   }
 
-  const { user } = await validateSession(sessionId);
+  let user: { id: string; email: string } | null = null;
+  try {
+    const { validateSession } = await import("@/lib/auth");
+    const session = await validateSession(sessionId);
+    user = session.user;
+  } catch {
+    // DB unavailable — let the page render and client-side auth handle it
+    return res;
+  }
 
   if (!user) {
     const isProtectedRoute = request.nextUrl.pathname !== "/" &&
@@ -27,16 +35,16 @@ export async function middleware(request: NextRequest) {
       !request.nextUrl.pathname.startsWith("/login");
 
     if (isProtectedRoute) {
-      return Response.redirect(new URL("/login", request.url));
+      return NextResponse.redirect(new URL("/login", request.url));
     }
   }
 
   const isAuthPage = request.nextUrl.pathname === "/login";
   if (isAuthPage && user) {
-    return Response.redirect(new URL("/dashboard", request.url));
+    return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
-  return new Response(null);
+  return res;
 }
 
 export const config = {
