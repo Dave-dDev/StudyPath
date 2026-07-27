@@ -5,8 +5,11 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "StudyPath — AI-Powered Study Tool",
-  description: "Turn any notes into personalised quizzes, flashcards, and Feynman summaries with Gemini AI.",
-  keywords: ["study", "AI", "quiz", "flashcards", "spaced repetition", "Gemini"],
+  description: "Turn any notes into personalised quizzes, flashcards, and Feynman summaries.",
+  keywords: ["study", "AI", "quiz", "flashcards", "spaced repetition"],
+  icons: {
+    icon: "/favicon.svg",
+  },
   openGraph: {
     title: "StudyPath",
     description: "AI-powered studying. Paste your notes, get a quiz in seconds.",
