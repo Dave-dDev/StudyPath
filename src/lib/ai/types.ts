@@ -83,19 +83,87 @@ export function createFlashcardDefaults(card: unknown): Flashcard {
 
 // ── JSON Parsing ───────────────────────────────────────
 
-export function cleanJsonOutput(response: string): string {
-  return response.trim().replace(/^```(?:json)?\s*/i, "").replace(/```$/i, "").trim();
+function stripMarkdownFences(text: string): string {
+  return text
+    .replace(/^```(?:json)?\s*\n?/im, "")
+    .replace(/\n?```\s*$/im, "")
+    .trim();
+}
+
+function repairJson(text: string): string {
+  let fixed = text;
+  // Remove trailing commas before } or ]
+  fixed = fixed.replace(/,\s*([}\]])/g, "$1");
+  // Remove // line comments (not inside strings — best effort)
+  fixed = fixed.replace(/(?<!["':])\/\/[^\n]*/g, "");
+  // Close unterminated strings at end of line
+  fixed = fixed.replace(/"([^"]*?)(\n|$)/g, (_, content, ending) => `"${content}"${ending}`);
+  return fixed;
+}
+
+function extractJsonObject<T>(text: string): T {
+  const cleaned = stripMarkdownFences(text);
+
+  // 1. Try parsing the whole cleaned text
+  try {
+    return JSON.parse(cleaned) as T;
+  } catch { /* continue */ }
+
+  const repaired = repairJson(cleaned);
+  try {
+    return JSON.parse(repaired) as T;
+  } catch { /* continue */ }
+
+  // 2. Find the outermost { ... } or [ ... ]
+  const openBrace = cleaned.indexOf("{");
+  const openBracket = cleaned.indexOf("[");
+  let start = -1;
+  if (openBrace >= 0 && (openBracket < 0 || openBrace < openBracket)) {
+    start = openBrace;
+  } else if (openBracket >= 0) {
+    start = openBracket;
+  }
+
+  if (start >= 0) {
+    const char = cleaned[start];
+    const close = char === "{" ? "}" : "]";
+    let depth = 0;
+    let inString = false;
+    let escape = false;
+    let end = -1;
+
+    for (let i = start; i < cleaned.length; i++) {
+      const c = cleaned[i];
+      if (escape) { escape = false; continue; }
+      if (c === "\\") { escape = true; continue; }
+      if (c === '"') { inString = !inString; continue; }
+      if (inString) continue;
+      if (c === char || (char === "{" && c === "{") || (char === "[" && c === "[")) {
+        if (c === "{" || c === "[") depth++;
+      }
+      if (c === close) {
+        depth--;
+        if (depth === 0) { end = i; break; }
+      }
+    }
+
+    if (end > start) {
+      const candidate = cleaned.substring(start, end + 1);
+      try {
+        return JSON.parse(candidate) as T;
+      } catch {
+        try {
+          return JSON.parse(repairJson(candidate)) as T;
+        } catch { /* continue */ }
+      }
+    }
+  }
+
+  throw new Error("Unable to parse JSON from AI response");
 }
 
 export function extractJson<T>(text: string): T {
-  const cleaned = cleanJsonOutput(text);
-  try {
-    return JSON.parse(cleaned) as T;
-  } catch {
-    const match = cleaned.match(/([\[{][\s\S]*?[\]}])/);
-    if (!match) throw new Error(`Unable to parse JSON from AI response`);
-    return JSON.parse(match[1]) as T;
-  }
+  return extractJsonObject<T>(text);
 }
 
 // ── Prompt Helpers ─────────────────────────────────────
@@ -116,7 +184,7 @@ export function difficultyInstructions(difficulty: Difficulty): string {
 }
 
 export function jsonSystemPrompt(): string {
-  return "You are an assistant that returns only valid JSON and nothing else.";
+  return "You are a JSON-only assistant. You MUST return valid JSON and absolutely nothing else. No markdown fences, no explanations, no commentary. Just raw JSON.";
 }
 
 // ── Provider Config ────────────────────────────────────
@@ -131,7 +199,7 @@ export function getAIConfig(): AIConfig {
         apiKey: process.env.OPENAI_API_KEY,
         model: process.env.OPENAI_MODEL?.trim() || "gpt-4o-mini",
         baseUrl: process.env.OPENAI_BASE_URL?.trim() || "https://api.openai.com/v1",
-        maxTokens: 1200,
+        maxTokens: 4096,
         temperature: 0.1,
       };
     case "gemini":
@@ -140,7 +208,7 @@ export function getAIConfig(): AIConfig {
         apiKey: process.env.GEMINI_API_KEY,
         model: process.env.GEMINI_MODEL?.trim() || "gemini-2.0-flash",
         baseUrl: "https://generativelanguage.googleapis.com/v1beta",
-        maxTokens: 1200,
+        maxTokens: 4096,
         temperature: 0.1,
       };
     case "ollama":
@@ -149,7 +217,7 @@ export function getAIConfig(): AIConfig {
         provider: "ollama",
         model: process.env.OLLAMA_MODEL?.trim() || "llama2",
         baseUrl: (process.env.OLLAMA_HOST?.trim() || "http://127.0.0.1:11434") + "/v1",
-        maxTokens: 1200,
+        maxTokens: 4096,
         temperature: 0.1,
       };
   }
