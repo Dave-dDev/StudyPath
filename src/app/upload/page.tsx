@@ -1,13 +1,45 @@
 "use client";
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { useDropzone } from "react-dropzone";
+import { useDropzone, type FileRejection } from "react-dropzone";
 import toast from "react-hot-toast";
 import Navbar from "@/components/layout/Navbar";
 import DifficultySelector from "@/components/ui/DifficultySelector";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
+import QuotaWidget from "@/components/ui/QuotaWidget";
 import type { Difficulty, StudyMode } from "@/types";
 import { cn } from "@/lib/utils";
+
+function readFileAsText(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => resolve((e.target?.result as string) ?? "");
+    reader.onerror = () => reject(new Error("Failed to read file."));
+    reader.readAsText(file);
+  });
+}
+
+async function extractPdfText(file: File): Promise<string> {
+  const pdfjs = await import("pdfjs-dist");
+  if (!pdfjs.GlobalWorkerOptions.workerSrc) {
+    pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+      "pdfjs-dist/build/pdf.worker.min.mjs",
+      import.meta.url
+    ).toString();
+  }
+  const data = new Uint8Array(await file.arrayBuffer());
+  const task = pdfjs.getDocument({ data });
+  const doc = await task.promise;
+  let fullText = "";
+  for (let i = 1; i <= doc.numPages; i++) {
+    const page = await doc.getPage(i);
+    const content = await page.getTextContent();
+    fullText += content.items.map((item) => ("str" in item ? item.str : "")).join(" ") + "\n";
+    page.cleanup();
+  }
+  await task.destroy();
+  return fullText.trim();
+}
 
 const MODE_SUGGESTIONS = [
   "Lecture notes",
@@ -47,6 +79,7 @@ export default function UploadPage() {
   const [adaptiveRec, setAdaptiveRec] = useState<{ recommended: string; confidence: number } | null>(null);
   const [urlInput, setUrlInput] = useState("");
   const [fetchingUrl, setFetchingUrl] = useState(false);
+  const [readingFile, setReadingFile] = useState(false);
 
   // Fetch adaptive difficulty recommendation
   useEffect(() => {
@@ -64,19 +97,61 @@ export default function UploadPage() {
   const recommendedMode = useMemo(() => getRecommendedMode(text), [text]);
   const recommendedDifficulty = useMemo(() => getRecommendedDifficulty(text), [text]);
 
-  const onDrop = useCallback((files: File[]) => {
-    const file = files[0];
+  const onDrop = useCallback(async (accepted: File[], rejected: FileRejection[]) => {
+    if (rejected.length > 0) {
+      toast.error(`Unsupported file: ${rejected[0].file.name}. Please upload a .txt, .md, or .pdf file (max 10 MB).`);
+      return;
+    }
+    const file = accepted[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (e) => setText(e.target?.result as string ?? "");
-    reader.readAsText(file);
-    toast.success(`Loaded: ${file.name}`);
-  }, []);
+
+    // Check + record an "ingest" usage unit before reading the file
+    try {
+      const usageRes = await fetch("/api/usage", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "ingest" }),
+      });
+      if (usageRes.status === 402) {
+        const data = await usageRes.json();
+        toast.error(data.error ?? "Import limit reached.", { duration: 6000 });
+        router.push("/pricing");
+        return;
+      }
+    } catch {
+      // If usage tracking is unavailable, proceed without gating
+    }
+
+    setReadingFile(true);
+    try {
+      const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+      const content = isPdf ? await extractPdfText(file) : await readFileAsText(file);
+      if (!content.trim()) {
+        toast.error(
+          isPdf
+            ? "No readable text found in this PDF. It may be a scanned image — try pasting the text directly."
+            : "The file appears to be empty."
+        );
+        return;
+      }
+      setText(content);
+      toast.success(`Loaded: ${file.name}`);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to read file. Try pasting the text directly.");
+    } finally {
+      setReadingFile(false);
+    }
+  }, [router]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    accept: { "text/plain": [".txt"], "application/pdf": [".pdf"] },
+    accept: {
+      "text/plain": [".txt"],
+      "text/markdown": [".md"],
+      "application/pdf": [".pdf"],
+    },
     maxFiles: 1,
+    maxSize: 10 * 1024 * 1024,
   });
 
   async function handleFetchUrl() {
@@ -109,7 +184,14 @@ export default function UploadPage() {
         body: JSON.stringify({ text, mode, difficulty }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error);
+      if (!res.ok) {
+        if (res.status === 402) {
+          toast.error(json.error ?? "Generation limit reached.", { duration: 6000 });
+          router.push("/pricing");
+          return;
+        }
+        throw new Error(json.error);
+      }
 
       const title = text.split("\n")[0].slice(0, 60).trim() || "Untitled study set";
 
@@ -121,7 +203,11 @@ export default function UploadPage() {
           body: JSON.stringify({ title, sourceText: text, difficulty, mode, data: json.data }),
         });
         const saveJson = await saveRes.json();
-        if (saveRes.ok && saveJson.set) studySetId = saveJson.set.id;
+        if (saveRes.ok && saveJson.set) {
+          studySetId = saveJson.set.id;
+        } else if (saveRes.status === 402) {
+          toast(saveJson.error ?? "Study set not saved — monthly limit reached. You can still use it now.", { icon: "ℹ️", duration: 6000 });
+        }
       } catch {}
 
       sessionStorage.setItem("studyData", JSON.stringify(json.data));
@@ -157,6 +243,10 @@ export default function UploadPage() {
           <p className="text-gray-600">Paste text, upload a file, or fetch from a URL — we&apos;ll handle the rest.</p>
         </div>
 
+        <div className="mb-6">
+          <QuotaWidget />
+        </div>
+
         <div
           {...getRootProps()}
           className={cn(
@@ -169,9 +259,9 @@ export default function UploadPage() {
           <input {...getInputProps()} />
           <div className="text-3xl mb-2">📄</div>
           <p className="font-semibold text-sm text-ink mb-1">
-            {isDragActive ? "Drop it!" : "Drop your file here"}
+            {isDragActive ? "Drop it!" : readingFile ? "Reading file..." : "Drop your file here"}
           </p>
-          <p className="text-xs text-gray-400 mb-3">PDF or .txt, up to 10 MB</p>
+          <p className="text-xs text-gray-400 mb-3">PDF, .txt, or .md — up to 10 MB</p>
           <button className="badge-teal px-4 py-1.5 text-xs">Browse files</button>
         </div>
 

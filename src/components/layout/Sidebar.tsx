@@ -57,6 +57,14 @@ export default function Sidebar() {
       </nav>
 
       <div className="p-4 border-t border-gray-100">
+        {user?.plan !== "pro" && (
+          <Link
+            href="/pricing"
+            className="block mb-3 px-3 py-2 rounded-xl bg-gradient-to-r from-teal-500 to-teal-400 text-white text-xs font-semibold text-center hover:opacity-90 transition-opacity"
+          >
+            ⭐ Upgrade to Pro
+          </Link>
+        )}
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center text-teal-700 text-xs font-bold">
             {initials}
@@ -65,7 +73,9 @@ export default function Sidebar() {
             <p className="text-xs font-semibold text-ink truncate">
               {user?.email ?? "Guest"}
             </p>
-            <p className="text-[11px] text-gray-400">Free plan</p>
+            <p className="text-[11px] text-gray-400">
+              {user?.plan === "pro" ? "Pro plan ⭐" : "Free plan"}
+            </p>
           </div>
           <button
             onClick={handleSignOut}

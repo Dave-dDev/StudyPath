@@ -1,22 +1,26 @@
 "use client";
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import type { Plan } from "@/types";
 
 interface AuthUser {
   id: string;
   email: string;
+  plan?: Plan;
 }
 
 interface AuthContextType {
   user: AuthUser | null;
   loading: boolean;
   signOut: () => Promise<void>;
+  refreshUser: () => Promise<AuthUser | null>;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
   signOut: async () => {},
+  refreshUser: async () => null,
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -24,13 +28,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  useEffect(() => {
-    fetch("/api/auth/me")
-      .then((r) => r.json())
-      .then((d) => setUser(d.user))
-      .catch(() => setUser(null))
-      .finally(() => setLoading(false));
+  const fetchMe = useCallback(async (): Promise<AuthUser | null> => {
+    try {
+      const r = await fetch("/api/auth/me");
+      const d = await r.json();
+      setUser(d.user ?? null);
+      return d.user ?? null;
+    } catch {
+      setUser(null);
+      return null;
+    }
   }, []);
+
+  useEffect(() => {
+    fetchMe().finally(() => setLoading(false));
+  }, [fetchMe]);
 
   const signOut = async () => {
     await fetch("/api/auth/signout", { method: "POST" });
@@ -38,8 +50,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.push("/login");
   };
 
+  const refreshUser = async () => fetchMe();
+
   return (
-    <AuthContext.Provider value={{ user, loading, signOut }}>
+    <AuthContext.Provider value={{ user, loading, signOut, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

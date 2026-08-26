@@ -13,6 +13,7 @@
     "clsx": "^2.1.1",
     "lucide-react": "^0.460.0",
     "next": "15.5.22",
+    "pdfjs-dist": "^6.2.108",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-dropzone": "^14.3.5",

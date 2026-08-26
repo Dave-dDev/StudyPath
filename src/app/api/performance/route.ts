@@ -1,15 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth-helpers";
+import { getUserPlan, ensurePlanSchema, FREE_HISTORY_DAYS } from "@/lib/plans";
 
 // GET: Retrieve performance history
 export async function GET(request: NextRequest) {
   const { user } = await getSession();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  await ensurePlanSchema();
+  const plan = await getUserPlan(user.id);
+
   const { searchParams } = new URL(request.url);
   const mode = searchParams.get("mode");
-  const days = Number(searchParams.get("days") || "30");
+  const requestedDays = Number(searchParams.get("days") || "30");
+  const historyDays = plan === "pro" ? 365 : FREE_HISTORY_DAYS;
+  const days = Math.min(requestedDays, historyDays);
+  const historyCapped = requestedDays > days;
 
   const since = Math.floor(Date.now() / 1000) - days * 86400;
 
@@ -86,6 +93,9 @@ export async function GET(request: NextRequest) {
     .sort((a, b) => b.count - a.count);
 
   return NextResponse.json({
+    plan,
+    historyDays,
+    historyCapped,
     logs,
     stats: { totalSessions, avgAccuracy, accuracyOverTime, byDifficulty: byDifficultyStats, byTopic: byTopicStats },
   });

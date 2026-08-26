@@ -99,3 +99,19 @@ CREATE INDEX IF NOT EXISTS idx_question_bank_topic ON question_bank(user_id, top
 CREATE INDEX IF NOT EXISTS idx_performance_log_user ON performance_log(user_id);
 CREATE INDEX IF NOT EXISTS idx_performance_log_mode ON performance_log(user_id, mode);
 CREATE INDEX IF NOT EXISTS idx_performance_log_created ON performance_log(user_id, created_at);
+
+-- Billing: plan tier (existing databases are migrated lazily by src/lib/plans.ts)
+ALTER TABLE user ADD COLUMN plan TEXT NOT NULL DEFAULT 'free';
+ALTER TABLE user ADD COLUMN plan_until INTEGER;
+
+-- Billing: usage counters for free-tier quotas
+-- period format: 'YYYY-MM-DD' (daily) or 'YYYY-MM' (monthly)
+CREATE TABLE IF NOT EXISTS usage_counters (
+  user_id TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+  action TEXT NOT NULL,
+  period TEXT NOT NULL,
+  count INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (user_id, action, period)
+);
+
+CREATE INDEX IF NOT EXISTS idx_usage_counters_user ON usage_counters(user_id);

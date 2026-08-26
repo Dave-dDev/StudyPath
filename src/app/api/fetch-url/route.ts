@@ -1,6 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getSession } from "@/lib/auth-helpers";
+import { checkLimit, recordUsage, limitMessage } from "@/lib/plans";
 
 export async function GET(request: NextRequest) {
+  const { user } = await getSession();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const limit = await checkLimit(user.id, "ingest");
+  if (limit && !limit.allowed) {
+    return NextResponse.json(
+      { error: limitMessage("ingest"), code: "LIMIT_REACHED", limit },
+      { status: 402 }
+    );
+  }
+
   const { searchParams } = new URL(request.url);
   const url = searchParams.get("url");
 
@@ -68,6 +81,8 @@ export async function GET(request: NextRequest) {
     if (text.length < 50) {
       return NextResponse.json({ error: "Could not extract meaningful content from this URL." }, { status: 422 });
     }
+
+    if (limit) await recordUsage(user.id, "ingest");
 
     return NextResponse.json({ text, length: text.length });
   } catch (err: unknown) {

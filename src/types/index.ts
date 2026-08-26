@@ -1,5 +1,6 @@
 // ── Study Content Types ──────────────────────────────────
 
+export type Plan = "free" | "pro";
 export type Difficulty = "easy" | "medium" | "hard";
 export type StudyMode = "quiz" | "flashcards" | "feynman";
 

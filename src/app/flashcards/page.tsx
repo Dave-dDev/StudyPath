@@ -1,11 +1,15 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import toast from "react-hot-toast";
 import Sidebar from "@/components/layout/Sidebar";
 import ProgressBar from "@/components/ui/ProgressBar";
 import type { Flashcard, SM2Grade } from "@/types";
 import { sm2, gradeIntervalPreview } from "@/lib/sm2";
 import { cn } from "@/lib/utils";
+import { isOffline, queueOfflineUpdate, offlinePendingCount, flushOfflineQueue, type OfflineProgressUpdate } from "@/lib/offline";
+
+const OFFLINE_DECK_KEY = "sp_offline_deck_v1";
 
 const GRADES: { grade: SM2Grade; label: string; emoji: string; style: string }[] = [
   { grade: 1, label: "Again",  emoji: "😰", style: "bg-coral-50  text-coral-700  border-coral-400" },
@@ -22,52 +26,130 @@ export default function FlashcardsPage() {
   const [done, setDone] = useState(false);
   const [stats, setStats] = useState({ again: 0, hard: 0, easy: 0, perfect: 0 });
   const [studySetId, setStudySetId] = useState<string | null>(null);
+  const [offline, setOffline] = useState(false);
+  const [pendingSync, setPendingSync] = useState(0);
 
+  // Load deck from sessionStorage, falling back to the offline deck cache
   useEffect(() => {
     const raw = sessionStorage.getItem("studyData");
     const savedSetId = sessionStorage.getItem("studySetId");
-    if (!raw) { router.push("/upload"); return; }
-    setCards(JSON.parse(raw) as Flashcard[]);
-    if (savedSetId) setStudySetId(savedSetId);
+    if (raw) {
+      setCards(JSON.parse(raw) as Flashcard[]);
+      if (savedSetId) setStudySetId(savedSetId);
+      try {
+        localStorage.setItem(
+          OFFLINE_DECK_KEY,
+          JSON.stringify({
+            studySetId: savedSetId,
+            cards: JSON.parse(raw),
+            meta: JSON.parse(sessionStorage.getItem("studyMeta") ?? "{}"),
+          })
+        );
+      } catch {}
+      return;
+    }
+    try {
+      const cached = localStorage.getItem(OFFLINE_DECK_KEY);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed.cards) && parsed.cards.length > 0) {
+          sessionStorage.setItem("studyData", JSON.stringify(parsed.cards));
+          if (parsed.studySetId) {
+            sessionStorage.setItem("studySetId", parsed.studySetId);
+            setStudySetId(parsed.studySetId);
+          }
+          if (parsed.meta) sessionStorage.setItem("studyMeta", JSON.stringify(parsed.meta));
+          setCards(parsed.cards as Flashcard[]);
+          return;
+        }
+      }
+    } catch {}
+    router.push("/upload");
   }, [router]);
+
+  // Track connectivity + auto-sync queued offline reviews
+  useEffect(() => {
+    setOffline(isOffline());
+    setPendingSync(offlinePendingCount());
+
+    const goOnline = async () => {
+      setOffline(false);
+      const synced = await flushOfflineQueue();
+      setPendingSync(offlinePendingCount());
+      if (synced > 0) toast.success(`Synced ${synced} offline review session${synced > 1 ? "s" : ""}`);
+    };
+    const goOffline = () => setOffline(true);
+
+    window.addEventListener("online", goOnline);
+    window.addEventListener("offline", goOffline);
+    return () => {
+      window.removeEventListener("online", goOnline);
+      window.removeEventListener("offline", goOffline);
+    };
+  }, []);
 
   const saveProgress = useCallback(async (updatedCards: Flashcard[]) => {
     if (!studySetId) return;
+
+    const payloadCards = updatedCards.map((c) => ({
+      cardId: c.id,
+      easeFactor: c.easeFactor,
+      interval: c.interval,
+      repetitions: c.repetitions,
+      nextReview: c.nextReview instanceof Date ? c.nextReview.toISOString() : String(c.nextReview),
+    }));
+
+    const meta = sessionStorage.getItem("studyMeta");
+    const parsed = meta ? JSON.parse(meta) : {};
+    const total = stats.again + stats.hard + stats.easy + stats.perfect;
+    const accuracy = total > 0 ? Math.round(((stats.easy + stats.perfect) / total) * 100) : 0;
+    const performance = {
+      mode: "flashcards",
+      difficulty: parsed.difficulty || "medium",
+      accuracy,
+    };
+
+    const queueIt = () => {
+      const update: OfflineProgressUpdate = {
+        studySetId,
+        cards: payloadCards,
+        performance,
+        queuedAt: Date.now(),
+      };
+      queueOfflineUpdate(update);
+      setPendingSync(offlinePendingCount());
+    };
+
+    if (isOffline()) {
+      queueIt();
+      toast("You're offline — progress saved locally and will sync automatically.", { icon: "📴", duration: 5000 });
+      return;
+    }
+
     try {
-      await fetch("/api/flashcard-progress", {
+      const res = await fetch("/api/flashcard-progress", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          studySetId,
-          cards: updatedCards.map((c) => ({
-            cardId: c.id,
-            easeFactor: c.easeFactor,
-            interval: c.interval,
-            repetitions: c.repetitions,
-            nextReview: c.nextReview instanceof Date ? c.nextReview.toISOString() : String(c.nextReview),
-          })),
-        }),
+        body: JSON.stringify({ studySetId, cards: payloadCards }),
       });
-    } catch {}
-
-    // Log performance
-    try {
-      const meta = sessionStorage.getItem("studyMeta");
-      const parsed = meta ? JSON.parse(meta) : {};
-      const total = stats.again + stats.hard + stats.easy + stats.perfect;
-      const accuracy = total > 0 ? Math.round(((stats.easy + stats.perfect) / total) * 100) : 0;
+      if (!res.ok) throw new Error("Sync failed");
       await fetch("/api/performance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          studySetId,
-          mode: "flashcards",
-          difficulty: parsed.difficulty || "medium",
-          accuracy,
-        }),
-      });
-    } catch {}
+        body: JSON.stringify({ studySetId, ...performance }),
+      }).catch(() => {});
+    } catch {
+      queueIt();
+    }
   }, [studySetId, stats]);
+
+  const offlineBanner = (offline || pendingSync > 0) && (
+    <div className="bg-amber-50 border-b border-amber-200 text-amber-700 text-xs text-center py-2 px-4">
+      {offline
+        ? "📴 Offline mode — your reviews are saved locally and will sync when you're back online."
+        : `⏳ ${pendingSync} offline review session${pendingSync > 1 ? "s" : ""} waiting to sync — reconnect to continue.`}
+    </div>
+  );
 
   if (!cards.length) return null;
 
@@ -96,7 +178,9 @@ export default function FlashcardsPage() {
     return (
       <div className="flex min-h-screen">
         <Sidebar />
-        <main className="flex-1 flex items-center justify-center bg-gray-50">
+        <main className="flex-1 flex flex-col bg-gray-50">
+          {offlineBanner}
+          <div className="flex-1 flex items-center justify-center">
           <div className="card p-10 max-w-md w-full text-center animate-slide-up">
             <div className="text-5xl mb-4">🎉</div>
             <h2 className="font-bold text-2xl text-ink mb-2">Session complete!</h2>
@@ -124,6 +208,7 @@ export default function FlashcardsPage() {
               </button>
             </div>
           </div>
+          </div>
         </main>
       </div>
     );
@@ -134,6 +219,7 @@ export default function FlashcardsPage() {
     <div className="flex min-h-screen">
       <Sidebar />
       <main className="flex-1 bg-gray-50">
+        {offlineBanner}
         <ProgressBar current={index + 1} total={cards.length} />
 
         <div className="max-w-4xl mx-auto px-6 py-8 flex gap-6">

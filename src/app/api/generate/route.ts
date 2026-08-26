@@ -1,9 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateQuizLocal, generateFlashcardsLocal, generateFeynmanLocal } from "@/lib/nlp/generate";
+import { getSession } from "@/lib/auth-helpers";
+import { checkLimit, recordUsage, limitMessage } from "@/lib/plans";
 import type { Difficulty, StudyMode } from "@/types";
 
 export async function POST(req: NextRequest) {
   try {
+    const { user } = await getSession();
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const limit = await checkLimit(user.id, "generation");
+    if (limit && !limit.allowed) {
+      return NextResponse.json(
+        { error: limitMessage("generation"), code: "LIMIT_REACHED", limit },
+        { status: 402 }
+      );
+    }
+
     const body = await req.json();
     const { text, mode, difficulty = "medium", count } = body as {
       text: string;
@@ -37,6 +50,8 @@ export async function POST(req: NextRequest) {
       default:
         return NextResponse.json({ error: "Invalid mode." }, { status: 400 });
     }
+
+    await recordUsage(user.id, "generation");
 
     return NextResponse.json({
       success: true,
