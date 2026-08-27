@@ -365,10 +365,11 @@ export default function UploadPage() {
           ✨ &nbsp;Generate my study set
         </button>
 
-        <p className="text-center text-xs text-gray-400 mt-3">
-          {text.length > 0 ? `${text.length.toLocaleString()} characters · ` : ""}
-          Powered by AI
-        </p>
+        {text.trim().length > 0 && (
+          <p className="text-center text-xs text-gray-400 mt-3">
+            {text.length.toLocaleString()} characters
+          </p>
+        )}
       </main>
     </div>
   );

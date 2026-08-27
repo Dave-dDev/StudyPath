@@ -1,4 +1,5 @@
 "use client";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BookOpen, LogOut, Loader2 } from "lucide-react";
@@ -9,11 +10,23 @@ export default function Navbar() {
   const path = usePathname();
   const isHome = path === "/";
   const { user, loading, signOut } = useAuth();
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 16);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   return (
     <nav className={cn(
-      "w-full h-16 flex items-center justify-between px-8 md:px-16",
-      isHome ? "bg-transparent absolute top-0 z-10" : "bg-white border-b border-gray-100 sticky top-0 z-50"
+      "w-full h-16 flex items-center justify-between px-8 md:px-16 transition-all duration-300",
+      isHome
+        ? scrolled
+          ? "sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-100 shadow-sm"
+          : "absolute top-0 z-10 bg-transparent"
+        : "sticky top-0 z-50 bg-white border-b border-gray-100"
     )}>
       {/* Logo */}
       <Link href="/" className="flex items-center gap-2.5 group">
