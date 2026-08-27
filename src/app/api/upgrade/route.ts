@@ -1,16 +1,31 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth-helpers";
-import { activatePro } from "@/lib/plans";
+import { isPaystackConfigured, initializeTransaction } from "@/lib/paystack";
 
-// POST: upgrade the signed-in user to Pro.
-// NOTE: This is a mock checkout for development. For production, replace with
-// a Stripe Checkout session: create the session here, redirect to Stripe, then
-// set plan='pro' in a /api/webhooks/stripe handler on checkout.session.completed.
-export async function POST() {
+// POST: start a Paystack checkout for the signed-in user.
+// Returns { authorizationUrl } — the client redirects there to pay.
+export async function POST(req: NextRequest) {
   const { user } = await getSession();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  await activatePro(user.id);
+  if (!isPaystackConfigured()) {
+    return NextResponse.json(
+      { error: "Payments are not configured yet. Add PAYSTACK_SECRET_KEY and PAYSTACK_PRO_AMOUNT_KOBO to the environment." },
+      { status: 503 }
+    );
+  }
 
-  return NextResponse.json({ ok: true, plan: "pro" });
+  try {
+    const origin = req.headers.get("origin") ?? "";
+    const { authorizationUrl, reference } = await initializeTransaction({
+      email: user.email,
+      userId: user.id,
+      callbackUrl: `${origin}/billing/callback`,
+    });
+    return NextResponse.json({ authorizationUrl, reference });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Could not start checkout.";
+    console.error("[/api/upgrade]", err);
+    return NextResponse.json({ error: message }, { status: 502 });
+  }
 }

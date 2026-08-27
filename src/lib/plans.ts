@@ -43,6 +43,8 @@ async function migrate(): Promise<void> {
   for (const sql of [
     "ALTER TABLE user ADD COLUMN plan TEXT NOT NULL DEFAULT 'free'",
     "ALTER TABLE user ADD COLUMN plan_until INTEGER",
+    "ALTER TABLE user ADD COLUMN paystack_customer TEXT",
+    "ALTER TABLE user ADD COLUMN paystack_subscription TEXT",
   ]) {
     try {
       await db.execute(sql);
@@ -82,6 +84,44 @@ export async function activatePro(userId: string, durationDays: number | null = 
     sql: "UPDATE user SET plan = 'pro', plan_until = ? WHERE id = ?",
     args: [planUntil, userId],
   });
+}
+
+// Grant Pro from a confirmed payment. If `subscriptionManaged` is true the
+// renewal webhook owns expiry, so plan_until is left open-ended.
+export async function grantProFromBilling(
+  userId: string,
+  opts: {
+    subscriptionManaged?: boolean;
+    durationDays?: number;
+    customerCode?: string | null;
+    subscriptionCode?: string | null;
+  } = {}
+): Promise<void> {
+  await ensurePlanSchema();
+  const planUntil = opts.subscriptionManaged
+    ? null
+    : Math.floor(Date.now() / 1000) + (opts.durationDays ?? 32) * 86400;
+  await db.execute({
+    sql: `UPDATE user SET
+            plan = 'pro',
+            plan_until = ?,
+            paystack_customer = COALESCE(?, paystack_customer),
+            paystack_subscription = COALESCE(?, paystack_subscription)
+          WHERE id = ?`,
+    args: [planUntil, opts.customerCode ?? null, opts.subscriptionCode ?? null, userId],
+  });
+}
+
+export async function revokePro(userId: string): Promise<void> {
+  await db.execute({
+    sql: "UPDATE user SET plan = 'free', plan_until = NULL, paystack_subscription = NULL WHERE id = ?",
+    args: [userId],
+  });
+}
+
+export async function findUserIdByEmail(email: string): Promise<string | null> {
+  const res = await db.execute({ sql: "SELECT id FROM user WHERE email = ?", args: [email] });
+  return res.rows.length > 0 ? String(res.rows[0].id) : null;
 }
 
 // ── Usage tracking / quota enforcement ────────────────────

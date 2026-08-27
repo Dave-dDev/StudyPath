@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
@@ -30,9 +30,19 @@ const PRO_FEATURES = [
 
 export default function PricingPage() {
   const router = useRouter();
-  const { user, refreshUser } = useAuth();
+  const { user } = useAuth();
   const [upgrading, setUpgrading] = useState(false);
+  const [priceLabel, setPriceLabel] = useState("$9");
   const isPro = user?.plan === "pro";
+
+  useEffect(() => {
+    fetch("/api/billing/config")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d?.priceLabel) setPriceLabel(d.priceLabel);
+      })
+      .catch(() => {});
+  }, []);
 
   async function handleUpgrade() {
     setUpgrading(true);
@@ -40,11 +50,11 @@ export default function PricingPage() {
       const res = await fetch("/api/upgrade", { method: "POST" });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Upgrade failed");
-      await refreshUser();
-      toast.success("You're now on Pro! Enjoy unlimited access ⭐");
+      if (!json.authorizationUrl) throw new Error("Checkout is not available yet.");
+      // Redirect to Paystack's hosted checkout page
+      window.location.href = json.authorizationUrl;
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Something went wrong.");
-    } finally {
       setUpgrading(false);
     }
   }
@@ -90,7 +100,7 @@ export default function PricingPage() {
                 Most powerful
               </span>
               <h2 className="text-lg font-bold text-ink mb-1">Pro ⭐</h2>
-              <p className="text-4xl font-bold text-ink mb-1">$9<span className="text-base font-medium text-gray-400">/mo</span></p>
+              <p className="text-4xl font-bold text-ink mb-1">{priceLabel}<span className="text-base font-medium text-gray-400">/mo</span></p>
               <p className="text-sm text-gray-400 mb-6">Unlimited studying + advanced learning analytics.</p>
               <ul className="space-y-3 mb-8">
                 {PRO_FEATURES.map((f) => (
@@ -119,8 +129,7 @@ export default function PricingPage() {
           </div>
 
           <p className="text-center text-xs text-gray-400 mt-8">
-            This checkout is a development preview — no card is required. Payment processing (Stripe) can be wired in to
-            <code className="mx-1">/api/upgrade</code>.
+            Secure checkout powered by Paystack. Cancel anytime — your Pro access stays active until the end of the billing period.
           </p>
         </div>
       </main>

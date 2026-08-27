@@ -90,70 +90,78 @@ export default function HeroStage() {
   return (
     <div
       ref={stageRef}
-      className="relative w-full max-w-3xl mx-auto h-[340px] sm:h-[400px] select-none"
+      className="relative w-full max-w-3xl mx-auto h-[320px] sm:h-[400px] select-none"
     >
       {/* Glow under the stage */}
       <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[70%] h-[60%] rounded-full bg-teal-100/70 blur-3xl blob-glow" />
 
       {/* Flashcard */}
       <div
-        className={cn("flip-card absolute left-1/2 top-1/2 w-[320px] sm:w-[420px] cursor-pointer", flipped && "flipped")}
-        style={{ height: 220, transform: "translate(-50%, -50%) translate3d(calc(var(--px, 0) * -8px), calc(var(--py, 0) * -6px), 0)" }}
+        className={cn("flip-card absolute left-1/2 top-1/2 w-[260px] sm:w-[420px] h-[190px] sm:h-[220px] cursor-pointer", flipped && "flipped")}
+        style={{ transform: "translate(-50%, -50%) translate3d(calc(var(--px, 0) * -8px), calc(var(--py, 0) * -6px), 0)" }}
         onClick={handleClick}
         role="button"
         aria-label={flipped ? "Show question" : "Reveal answer"}
       >
         <div className="flip-card-inner relative w-full h-full">
-          <div className="flip-card-front absolute inset-0 card border-2 border-teal-100 flex flex-col items-center justify-center p-7 text-center shadow-lifted">
-            <span className="badge-teal mb-4 text-[10px] tracking-widest uppercase">Question · {card.subject}</span>
-            <p className="font-semibold text-lg sm:text-xl text-ink leading-snug">{card.front}</p>
-            <p className="text-[11px] text-gray-400 mt-5">Click to reveal answer</p>
+          <div className="flip-card-front absolute inset-0 card border-2 border-teal-100 flex flex-col items-center justify-center p-5 sm:p-7 text-center shadow-lifted">
+            <span className="badge-teal mb-3 sm:mb-4 text-[10px] tracking-widest uppercase">Question · {card.subject}</span>
+            <p className="font-semibold text-base sm:text-xl text-ink leading-snug">{card.front}</p>
+            <p className="text-[11px] text-gray-400 mt-3 sm:mt-5">Tap to reveal answer</p>
           </div>
-          <div className="flip-card-back absolute inset-0 card border-2 border-purple-400 bg-purple-50 flex flex-col items-center justify-center p-7 text-center shadow-lifted">
-            <span className="badge bg-purple-50 text-purple-700 mb-4 text-[10px] tracking-widest uppercase">Answer</span>
-            <p className="text-sm sm:text-base text-ink leading-relaxed">{card.back}</p>
+          <div className="flip-card-back absolute inset-0 card border-2 border-purple-400 bg-purple-50 flex flex-col items-center justify-center p-5 sm:p-7 text-center shadow-lifted">
+            <span className="badge bg-purple-50 text-purple-700 mb-3 sm:mb-4 text-[10px] tracking-widest uppercase">Answer</span>
+            <p className="text-[13px] sm:text-base text-ink leading-relaxed">{card.back}</p>
           </div>
         </div>
       </div>
 
-      {/* Floating chip: SM-2 scheduling */}
+      {/* Floating chip: SM-2 scheduling (top-left) */}
       <div
-        className="hidden sm:flex anim-float absolute left-[4%] top-[16%] items-center gap-2.5 bg-white border border-gray-100 rounded-2xl px-4 py-3 shadow-lifted"
-        style={{ transform: "translate3d(calc(var(--px, 0) * 14px), calc(var(--py, 0) * 10px), 0)" }}
+        className="absolute left-0 top-1 z-10"
+        style={{ transform: "translate3d(calc(var(--px, 0) * 14px), calc(var(--py, 0) * 10px), 0)", transition: "transform 0.2s ease-out" }}
       >
-        <span className="text-xl">🃏</span>
-        <div className="text-left">
-          <div className="text-xs font-semibold text-ink">Spaced repetition</div>
-          <div className="text-[11px] text-gray-400">Next review in 3 days</div>
+        <div className="anim-float flex items-center gap-2 sm:gap-2.5 bg-white border border-gray-100 rounded-2xl px-3 py-2 sm:px-4 sm:py-3 shadow-lifted">
+          <span className="text-lg sm:text-xl">🃏</span>
+          <div className="text-left">
+            <div className="text-[11px] sm:text-xs font-semibold text-ink">Spaced repetition</div>
+            <div className="hidden sm:block text-[11px] text-gray-400">Next review in 3 days</div>
+          </div>
         </div>
       </div>
 
-      {/* Floating chip: quiz option */}
+      {/* Floating chip: quiz option (top-right) */}
       <div
-        className="hidden sm:flex anim-float-slow absolute right-[3%] top-[12%] items-center gap-2 bg-white border border-teal-100 rounded-2xl px-4 py-2.5 shadow-lifted"
-        style={{ transform: "translate3d(calc(var(--px, 0) * 18px), calc(var(--py, 0) * 12px), 0)" }}
+        className="absolute right-0 top-3 z-10"
+        style={{ transform: "translate3d(calc(var(--px, 0) * 18px), calc(var(--py, 0) * 12px), 0)", transition: "transform 0.2s ease-out" }}
       >
-        <span className="w-5 h-5 rounded-full bg-teal-400 text-white text-[10px] font-bold flex items-center justify-center">✓</span>
-        <span className="text-xs font-medium text-ink">Correct · +1 mastery</span>
+        <div className="anim-float-slow flex items-center gap-2 bg-white border border-teal-100 rounded-2xl px-3 py-2 sm:px-4 sm:py-2.5 shadow-lifted">
+          <span className="w-5 h-5 rounded-full bg-teal-400 text-white text-[10px] font-bold flex items-center justify-center">✓</span>
+          <span className="text-[11px] sm:text-xs font-medium text-ink">Correct · +1 mastery</span>
+        </div>
       </div>
 
-      {/* Floating chip: streak */}
+      {/* Floating chip: streak (bottom-right) */}
       <div
-        className="hidden md:flex anim-float absolute right-[8%] bottom-[10%] items-center gap-2 bg-white border border-gray-100 rounded-2xl px-4 py-2.5 shadow-lifted"
-        style={{ transform: "translate3d(calc(var(--px, 0) * 12px), calc(var(--py, 0) * 16px), 0)" }}
+        className="absolute right-0 bottom-2 z-10"
+        style={{ transform: "translate3d(calc(var(--px, 0) * 12px), calc(var(--py, 0) * 16px), 0)", transition: "transform 0.2s ease-out" }}
       >
-        <span className="text-lg">🔥</span>
-        <span className="text-xs font-semibold text-ink">Study streak kept alive</span>
+        <div className="anim-float flex items-center gap-2 bg-white border border-gray-100 rounded-2xl px-3 py-2 sm:px-4 sm:py-2.5 shadow-lifted">
+          <span className="text-base sm:text-lg">🔥</span>
+          <span className="text-[11px] sm:text-xs font-semibold text-ink">Study streak kept alive</span>
+        </div>
       </div>
 
-      {/* Floating chip: accuracy */}
+      {/* Floating chip: accuracy (bottom-left) */}
       <div
-        className="hidden md:flex anim-float-slow absolute left-[6%] bottom-[14%] items-center gap-2.5 bg-white border border-gray-100 rounded-2xl px-4 py-2.5 shadow-lifted"
-        style={{ transform: "translate3d(calc(var(--px, 0) * 16px), calc(var(--py, 0) * 14px), 0)" }}
+        className="absolute left-1 bottom-6 z-10"
+        style={{ transform: "translate3d(calc(var(--px, 0) * 16px), calc(var(--py, 0) * 14px), 0)", transition: "transform 0.2s ease-out" }}
       >
-        <div className="w-8 h-8 rounded-full bg-teal-50 flex items-center justify-center text-teal-400 text-xs font-bold">92%</div>
-        <div className="text-left">
-          <div className="text-[11px] text-gray-400">Quiz accuracy</div>
+        <div className="anim-float-slow flex items-center gap-2 sm:gap-2.5 bg-white border border-gray-100 rounded-2xl px-3 py-2 sm:px-4 sm:py-2.5 shadow-lifted">
+          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-teal-50 flex items-center justify-center text-teal-400 text-[10px] sm:text-xs font-bold">92%</div>
+          <div className="text-left">
+            <div className="text-[10px] sm:text-[11px] text-gray-400">Quiz accuracy</div>
+          </div>
         </div>
       </div>
     </div>

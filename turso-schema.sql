@@ -103,6 +103,8 @@ CREATE INDEX IF NOT EXISTS idx_performance_log_created ON performance_log(user_i
 -- Billing: plan tier (existing databases are migrated lazily by src/lib/plans.ts)
 ALTER TABLE user ADD COLUMN plan TEXT NOT NULL DEFAULT 'free';
 ALTER TABLE user ADD COLUMN plan_until INTEGER;
+ALTER TABLE user ADD COLUMN paystack_customer TEXT;
+ALTER TABLE user ADD COLUMN paystack_subscription TEXT;
 
 -- Billing: usage counters for free-tier quotas
 -- period format: 'YYYY-MM-DD' (daily) or 'YYYY-MM' (monthly)

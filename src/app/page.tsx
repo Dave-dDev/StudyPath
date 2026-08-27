@@ -117,12 +117,12 @@ export default function LandingPage() {
           />
 
           <div className="relative flex flex-col items-center text-center">
-            <h1 className="font-bold text-[42px] md:text-[60px] leading-[1.1] text-ink max-w-3xl mb-5">
+            <h1 className="font-bold text-[36px] sm:text-[52px] md:text-[60px] leading-[1.1] text-ink max-w-3xl mb-5">
               Turn any notes into
               <br />
               <RotatingWord
                 className="text-teal-400"
-                words={["quizzes that test you.", "flashcards that stick.", "plain-English summaries.", "study sessions."]}
+                words={["quizzes.", "flashcards.", "summaries.", "study plans."]}
               />
             </h1>
 

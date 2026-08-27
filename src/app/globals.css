@@ -144,7 +144,7 @@ html.reveal-on .reveal.is-revealed {
 .faq-body.open { grid-template-rows: 1fr; }
 
 /* Rotating headline word — stacked grid, no layout shift */
-.word-stack { display: inline-grid; text-align: left; }
+.word-stack { display: inline-grid; justify-items: center; }
 .word-item {
   grid-area: 1 / 1;
   transition:
